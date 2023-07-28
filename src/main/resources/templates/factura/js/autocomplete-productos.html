@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+  <script type="text/javascript" th:fragment="javascript">
+
+    $(document).ready(function(){
+      $("#buscar_producto").autocomplete({
+        source: function(request, response){
+          $.ajax({
+            url: "/factura/cargar-productos/" + request.term,
+            dataType: "json",
+            data: {
+              term: request.term
+            },
+            success: function(data){
+              response($.map(data, function(item){
+                return {
+                  value: item.id,
+                  label: item.nombre,
+                  precio: item.precio,
+                };
+              }));
+            },
+          });
+        },
+        select: function(event, ui){
+          //$("#buscar_producto").val(ui.item.label);
+
+          // Preguntar si el producto existe
+          if(itemsHelper.hasProducto(ui.item.value)){
+            itemsHelper.incrementarCantidad(ui.item.value, ui.item.precio);
+            return false;
+          }
+
+          var linea = $("#plantillaItemsFactura").html();
+
+          linea = linea.replace(/{ID}/g, ui.item.value)
+          linea = linea.replace(/{NOMBRE}/g, ui.item.label)
+          linea = linea.replace(/{PRECIO}/g, ui.item.precio)
+
+          $("#cargarItemProductos tbody").append(linea);
+
+          // Calculamos la cantidad
+          itemsHelper.calcularImporte(ui.item.value, ui.item.precio, 1)
+
+          return false;
+        }
+      });
+
+      // Eliminamos el plantillaItemsFactura
+      // ESTO ES IMPORTANTE!
+      // Porque si no se eliminar el 'plantillaItemsFactura' va a tomar el input de la plantilla como una linea mas
+      // Y va a lanzar un error porque el ID contiene un valor STRING que no es numero, no es parte de la LINEA.
+      $("form").submit(function(){
+        $("#plantillaItemsFactura").remove();
+        return;
+      });
+
+    });
+
+    // Function para calcular el importe total por linea de itemsProducto
+
+    var itemsHelper = {
+      calcularImporte: function(id, precio, cantidad){
+        $("#total_importe_" + id).html(parseInt(precio) * parseInt(cantidad));
+        // Para el calculo de gran total
+        this.calcularGranTotal();
+      },
+      // Function (metodo) para el incremental de productos/acomplamiento
+      // Corrobora linea por linea en detalle de factura, si el ID existe
+      hasProducto: function(id){
+
+        var resultado = false;
+
+        $('input[name="item_id[]"]').each(function(){
+          if( parseInt(id) == parseInt($(this).val()) ){
+            resultado = true;
+          }
+        });
+
+        return resultado;
+      },
+      // Metodo para incrementar la cantidad de la linea existente
+      incrementarCantidad: function(id, precio){
+        var cantidad = $("#cantidad_" + id).val() ? parseInt($("#cantidad_" + id).val()) :0;
+        $("#cantidad_" + id).val(++cantidad);
+        this.calcularImporte(id, precio, cantidad);
+      },
+
+      // Nuevo metodo para eliminar linea de factura
+      eliminarLineaFactura: function(id){
+        $("#row_" + id).remove();
+        this.calcularGranTotal();
+      },
+
+      // Metodo calcular Gran total
+      calcularGranTotal: function(){
+        var total = 0;
+        // Recorremos cada span que contenga, por id, total de importe
+        $('span[id^="total_importe_"]').each(function(){
+          total += parseInt($(this).html());
+        });
+        $('#gran_total').html(total);
+      }
+    }
+
+
+  </script>
+</body>
+</html>
